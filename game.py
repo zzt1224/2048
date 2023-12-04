@@ -1,79 +1,166 @@
 from grid import Grid
 import random
+from typing import TypeVar
+
+
+class Direction:
+    UP = "UP"
+    DOWN = "DOWN"
+    LEFT = "LEFT"
+    RIGHT = "RIGHT"
+
+
+T = TypeVar("T", bound="Game")
+
 
 class Game:
-  def __init__(self, grid: Grid):
-    self.grid = grid
-    self.addRandomTile()
-    self.addRandomTile()
+    def __init__(self, grid: Grid):
+        self.grid = grid
+        self.keepPlaying = False
+        self.over = False
+        self.score = 0
 
-  def addRandomTile(self):
-    # Adds a random tile to the grid
-    available_positions = self.grid.get_empty_positions()
-    
-    if len(available_positions) == 0:
-      return False
-    
-    # Choose a random position
-    position = random.choice(available_positions)
+    def setup(self: T) -> T:
+        s = self.fromState()
+        s = s.addRandomTile()
+        s = s.addRandomTile()
+        return s
 
-    # Choose a random value
-    value = 1 if random.random() < 0.9 else 2
+    def fromState(self: T) -> T:
+        s = Game(self.grid.from_grid())
+        s.keepPlaying = self.keepPlaying
+        s.over = self.over
+        s.score = self.score
+        return s
 
-    self.grid.add_new(*position, value)
-    return True
-  
-  def move(self, direction: str):
-    n = self.grid.size
-    moved = False
+    def addRandomTile(self: T) -> T:
+        # Adds a random tile to the grid
+        available_positions = self.grid.get_empty_positions()
 
-    for x in range(n):
-      stack = []
-      for y in range(n):
-        _x, _y = (y, x) if direction == "UP" or direction == "DOWN" else (x, y)
-        i = -_x - 1 if direction == "DOWN" else _x
-        j = -_y - 1 if direction == "DOWN" or direction == "RIGHT" else _y
+        if len(available_positions) == 0:
+            return self
 
-        if len(stack) == 0:
-          cell = self.grid.get_cell_value(i, j)
-          if cell is not None:
-            stack.append(cell)
-        else:
-          if stack[-1] == self.grid.get_cell_value(i, j):
-            stack[-1] += 1
-          else:
-            cell = self.grid.get_cell_value(i, j)
-            if cell is not None:
-              stack.append(cell)
+        # Choose a random position
+        position = random.choice(available_positions)
 
-      for k in range(n):
-        _x, _y = (k, x) if direction == "UP" or direction == "DOWN" else (x, k)
-        i = -_x - 1 if direction == "DOWN" else _x
-        j = -_y - 1 if direction == "DOWN" or direction == "RIGHT" else _y
-        
-        new_value = stack[k] if k < len(stack) else None
-        if self.grid.get_cell_value(i, j) != new_value:
-          moved = True
+        # Choose a random value
+        value = 1 if random.random() < 0.9 else 2
 
-        self.grid.set_cell_value(i, j, new_value)
+        return self.addTile(*position, value)
 
-    if moved:
-      self.addRandomTile()
+    def addTile(self: T, x: int, y: int, value: int) -> T:
+        s = self.fromState()
+        s.grid.add_tile(x, y, value)
+        return s
 
-game = Game(Grid(5))
-game.grid.print_grid()
-game.move("LEFT")
-game.move("LEFT")
-game.move("LEFT")
-game.grid.print_grid()
+    def getLegalActions(self: T) -> list[(Direction, T)]:
+        res = []
 
+        if self.isOver():
+            return res
 
+        for direction in [
+            Direction.DOWN,
+            Direction.LEFT,
+            Direction.RIGHT,
+            Direction.UP,
+        ]:
+            next_state = self.move(direction)
 
-        
+            if next_state != self:
+                res.append((direction, next_state))
 
+        return res
 
+    def move(self: T, direction: Direction) -> T:
+        s = self.fromState()
+        n = s.grid.size
 
+        for x in range(n):
+            stack = []
+            for y in range(n):
+                _x, _y = (
+                    (y, x)
+                    if direction == Direction.UP or direction == Direction.DOWN
+                    else (x, y)
+                )
+                i = -_x - 1 if direction == Direction.DOWN else _x
+                j = (
+                    -_y - 1
+                    if direction == Direction.DOWN or direction == Direction.RIGHT
+                    else _y
+                )
 
+                tile = s.grid.get_tile(i, j)
 
-        
-  
+                if len(stack) == 0:
+                    if tile is not None:
+                        stack.append([tile, False])
+                else:
+                    if stack[-1][0] == tile and not stack[-1][1]:
+                        stack[-1][0] += 1
+                        stack[-1][1] = True
+                        s.score += 2 ** stack[-1][0]
+                    else:
+                        if tile is not None:
+                            stack.append([tile, False])
+
+            for k in range(n):
+                _x, _y = (
+                    (k, x)
+                    if direction == Direction.UP or direction == Direction.DOWN
+                    else (x, k)
+                )
+                i = -_x - 1 if direction == Direction.DOWN else _x
+                j = (
+                    -_y - 1
+                    if direction == Direction.DOWN or direction == Direction.RIGHT
+                    else _y
+                )
+
+                s.grid.set_tile(i, j, stack[k][0] if k < len(stack) else None)
+
+        return s
+
+    def tileMatchesAvailable(self) -> bool:
+        n = self.grid.size
+        for i in range(n):
+            for j in range(n):
+                tile = self.grid.get_tile(i, j)
+
+                if tile:
+                    if self.grid.within_bounds(i, j + 1) and tile == self.grid.get_tile(
+                        i, j + 1
+                    ):
+                        return True
+                    if self.grid.within_bounds(i, j - 1) and tile == self.grid.get_tile(
+                        i, j - 1
+                    ):
+                        return True
+                    if self.grid.within_bounds(i + 1, j) and tile == self.grid.get_tile(
+                        i + 1, j
+                    ):
+                        return True
+                    if self.grid.within_bounds(i - 1, j) and tile == self.grid.get_tile(
+                        i - 1, j
+                    ):
+                        return True
+
+        return False
+
+    def isOver(self) -> bool:
+        return (
+            len(self.grid.get_empty_positions()) == 0
+            and not self.tileMatchesAvailable()
+        )
+
+    def __eq__(self, other):
+        if not isinstance(other, Game):
+            # don't attempt to compare against unrelated types
+            return NotImplemented
+
+        return (
+            self.grid == other.grid
+            and self.keepPlaying == other.keepPlaying
+            and self.over == other.over
+        )
