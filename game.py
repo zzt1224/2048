@@ -1,6 +1,7 @@
 from grid import Grid
 import random
 from typing import TypeVar
+from collections import defaultdict
 
 
 class Direction:
@@ -16,21 +17,16 @@ T = TypeVar("T", bound="Game")
 class Game:
     def __init__(self, grid: Grid):
         self.grid = grid
-        self.keepPlaying = False
-        self.over = False
         self.score = 0
+        self.records = defaultdict(int)
 
     def setup(self: T) -> T:
-        s = self.fromState()
-        s = s.addRandomTile()
-        s = s.addRandomTile()
-        return s
+        return self.fromState().addRandomTile().addRandomTile()
 
     def fromState(self: T) -> T:
         s = Game(self.grid.from_grid())
-        s.keepPlaying = self.keepPlaying
-        s.over = self.over
         s.score = self.score
+        s.records = self.records.copy()
         return s
 
     def addRandomTile(self: T) -> T:
@@ -69,7 +65,6 @@ class Game:
 
             if next_state != self:
                 res.append((direction, next_state))
-
         return res
 
     def move(self: T, direction: Direction) -> T:
@@ -101,6 +96,8 @@ class Game:
                         stack[-1][0] += 1
                         stack[-1][1] = True
                         s.score += 2 ** stack[-1][0]
+                        if stack[-1][0] > 8:
+                            s.records[2 ** stack[-1][0]] += 1
                     else:
                         if tile is not None:
                             stack.append([tile, False])
@@ -159,8 +156,4 @@ class Game:
             # don't attempt to compare against unrelated types
             return NotImplemented
 
-        return (
-            self.grid == other.grid
-            and self.keepPlaying == other.keepPlaying
-            and self.over == other.over
-        )
+        return self.grid == other.grid

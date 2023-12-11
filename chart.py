@@ -8,7 +8,7 @@ df = pd.read_csv(file_path)
 
 # Get unique values for 'depth', 'eval', and 'agent'
 depths = sorted(df["depth"].unique())
-agents = sorted(df["agent"].unique())
+agents = df["agent"].unique()
 
 # Define a color map for agents
 color_map = {agent: plt.cm.tab10(i) for i, agent in enumerate(agents)}
